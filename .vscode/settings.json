@@ -1,0 +1,14 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "server": "159.69.161.106",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "Numb",
+            "database": "am_db",
+            "username": "am_db_usr",
+            "password": "am_db_usr"
+        }
+    ]
+}
