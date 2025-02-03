@@ -1,0 +1,8 @@
+pymongo
+openai 
+langchain_openai 
+langgraph 
+scipy 
+langchain 
+python-telegram-bot 
+scikit-learn

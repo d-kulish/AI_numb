@@ -1,0 +1,16 @@
+openai
+langchain 
+sqlalchemy 
+scipy 
+langchain_openai 
+langchain-community 
+langchain-text-splitters 
+langchain-core 
+langchain-experimental
+langchain_mongodb
+pymongo 
+langgraph 
+six 
+python-telegram-bot==20.0.0 
+telegram 
+scikit-learn
