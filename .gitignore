@@ -174,4 +174,7 @@ cython_debug/
 .env
 *.env
 
-db.ipynb
+# VS Code settings
+.vscode/
+*.code-workspace
+.history/
