@@ -59,6 +59,9 @@ from typing import List, Dict
 import os
 from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+
 openai_token = os.getenv('OPENAI_API_KEY')
 mongodb_uri = os.getenv('MONGODB_URI')
 
