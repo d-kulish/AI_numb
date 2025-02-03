@@ -56,19 +56,18 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import List, Dict
 
+import os
+from dotenv import load_dotenv
 
-# Connects
-openai_token = "DUMMY-API-KEY"
+openai_token = os.getenv('OPENAI_API_KEY')
+mongodb_uri = os.getenv('MONGODB_URI')
 
 mongodb_client = pymongo.MongoClient(
-    "mongodb+srv://dkulish:DUMMY-PASSWORD@aichat.ncjk2.mongodb.net/"
+    mongodb_uri
 )
-coll_corp_gen = mongodb_client["ai_chat"]["company_general"]
-# coll_internal_rules_detailed = mongodb_client["ai_chat"]["detailed_xmls"]
-coll_internal_rules_general = mongodb_client["ai_chat"]["general_xmls"]
-coll_chat_history = mongodb_client["ai_chat"]["chat_history"]
-coll_erm_cases = mongodb_client["ai_chat"]["erm_cases"] 
-coll_manuals_pdf = mongodb_client["ai_chat"]["manuals_pdf"] 
+
+coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
+
 
 model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
 openai_client = OpenAI(api_key=openai_token)
@@ -124,8 +123,8 @@ def get_last_ai_message_content(messages):
 
 
 async def send_and_receive(dictionary):
-    TELEGRAM_BOT_TOKEN = "DUMMY-BOT-TOKEN"
-    CHAT_ID = DUMMY-CHAT-ID  # Integer chat ID
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+    CHAT_ID = os.getenv('CHAT_ID') 
 
     bot = None
 
