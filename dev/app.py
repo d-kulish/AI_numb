@@ -63,7 +63,7 @@ openai_token = "DUMMY-API-KEY"
 mongodb_client = pymongo.MongoClient(
     "mongodb+srv://dkulish:DUMMY-PASSWORD@aichat.ncjk2.mongodb.net/"
 )
-coll_chat_history = mongodb_client["ai_chat"]["chat_history"]
+coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
 model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
 openai_client = OpenAI(api_key=openai_token)
