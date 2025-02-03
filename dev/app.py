@@ -48,7 +48,8 @@ from langchain.prompts.chat import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 
 import telegram
-# from telegram import InlineKeyboardButton, InlineKeyboardMarkup 
+
+# from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 import time
 
@@ -56,13 +57,13 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import List, Dict
 
+import os
+from dotenv import load_dotenv
 
-# Connects
-openai_token = "DUMMY-API-KEY"
+openai_token = os.getenv("OPENAI_API_KEY")
+mongodb_uri = os.getenv("MONGODB_URI")
 
-mongodb_client = pymongo.MongoClient(
-    "mongodb+srv://dkulish:DUMMY-PASSWORD@aichat.ncjk2.mongodb.net/"
-)
+mongodb_client = pymongo.MongoClient(mongodb_uri)
 coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
 model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
@@ -119,8 +120,8 @@ def get_last_ai_message_content(messages):
 
 
 async def send_and_receive(dictionary):
-    TELEGRAM_BOT_TOKEN = "DUMMY-BOT-TOKEN"
-    CHAT_ID = DUMMY-CHAT-ID  # Integer chat ID
+    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    CHAT_ID = os.getenv("CHAT_ID")  # Integer chat ID
 
     bot = None
 
@@ -179,6 +180,7 @@ async def send_and_receive(dictionary):
 
 # Tools
 
+
 @tool
 def count_unique_conversations():
     """
@@ -193,6 +195,7 @@ def count_unique_conversations():
     unique_ids = coll_chat_history.distinct("_id")
     # return f'Number of unique conversation saved is {len(unique_ids)}'
     return len(unique_ids)
+
 
 @tool
 def approval_money_transfer(sentence: str) -> str:
@@ -248,7 +251,7 @@ def approval_money_transfer(sentence: str) -> str:
 
 tools = [
     count_unique_conversations,
-    approval_money_transfer, 
+    approval_money_transfer,
 ]
 tool_node = ToolNode(tools)
 
@@ -262,7 +265,7 @@ prompt = ChatPromptTemplate.from_messages(
             1. answer questions in the same language the clients asks them; 
             2. be kind, professional and polite; 
             3. format your answers in a structured way; 
-            4. answer questions only related to C4R; 
+            4. answer questions only related to Numberz; 
                   """,
         ),
         ("placeholder", "{messages}"),
