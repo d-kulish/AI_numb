@@ -1,0 +1,6 @@
+.env
+*.env
+config.json
+settings.json
+credentials.py
+secret.py
