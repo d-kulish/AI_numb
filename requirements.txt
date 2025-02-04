@@ -1,8 +1,11 @@
+python-dotenv
 pymongo
-openai 
-langchain_openai 
-langgraph 
-scipy 
-langchain 
-python-telegram-bot 
+openai
+langchain-openai
+langgraph
+scipy
+typing-extensions
+langchain
+python-telegram-bot
 scikit-learn
+numpy
