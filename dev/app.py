@@ -61,8 +61,11 @@ from typing import List, Dict
 
 # Connects
 openai_token = os.getenv("OPENAI_API_KEY")
-
 mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))
+
 
 coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
@@ -120,8 +123,8 @@ def get_last_ai_message_content(messages):
 
 
 async def send_and_receive(dictionary):
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))  # Convert to integer
+    # TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    # CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))  # Convert to integer
 
     bot = None
 

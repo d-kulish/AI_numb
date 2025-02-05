@@ -51,13 +51,15 @@ from langchain.prompts.chat import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 
 import telegram
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 import time
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import List, Dict
 
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import html
 
 # Connects
 openai_token = os.getenv("OPENAI_API_KEY")
@@ -65,6 +67,7 @@ mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))
+
 
 coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
@@ -294,41 +297,48 @@ thread_id = uuid.uuid4()
 config = {"configurable": {"thread_id": thread_id}}
 
 
+async def handle_message(update, context):
+    question = update.message.text
+    question = question.encode("utf-8", errors="ignore").decode("utf-8")
+
+    state = {"messages": [HumanMessage(content=question)]}
+    result_state = graph.invoke(state, config=config)
+    ai_message = result_state["messages"][-1]
+    ai_message_content = ai_message.content.encode("utf-8", errors="ignore").decode("utf-8")
+
+    # Store in MongoDB
+    coll_chat_history.insert_one({
+        "thread_id": str(thread_id),
+        "conversation": {
+            "question": question,
+            "answer": ai_message_content,
+            "timestamp": uuid.uuid4().time,
+            "chat_id": update.effective_chat.id,
+            "user_id": update.effective_user.id
+        },
+        "timestamp": uuid.uuid4().time,
+    })
+
+    # Send response back to Telegram
+    await update.message.reply_text(html.escape(ai_message_content), parse_mode='HTML')
+
+async def start_command(update, context):
+    await update.message.reply_text('Hello! I am your Numberz AI assistant. How can I help you today?')
+
 def main():
-    conversation = []
-    thread_id = uuid.uuid4()  # Generate a unique thread ID for the conversation
-
-    try:
-        while True:
-            question = input("You: ")
-            if question.lower() in ["exit", "quit"]:
-                break
-            question = question.encode("utf-8", errors="ignore").decode("utf-8")
-
-            state = {"messages": [HumanMessage(content=question)]}
-            result_state = graph.invoke(state, config=config)
-            ai_message = result_state["messages"][-1]
-            ai_message_content = ai_message.content.encode(
-                "utf-8", errors="ignore"
-            ).decode("utf-8")
-
-            print(f"AI: {ai_message_content}")
-            conversation.append(
-                {
-                    "question": question,
-                    "answer": ai_message_content,
-                    "timestamp": uuid.uuid4().time,
-                }
-            )
-    finally:
-        coll_chat_history.insert_one(
-            {
-                "thread_id": str(thread_id),
-                "conversation": conversation,
-                "timestamp": uuid.uuid4().time,
-            }
-        )
-
+    # Get the token from environment variables
+    token = os.getenv("TELEGRAM_CHAT_BOT_TOKEN")
+    
+    # Create application
+    application = Application.builder().token(token).build()
+    
+    # Add handlers
+    application.add_handler(CommandHandler('start', start_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Start the bot
+    print("Starting bot...")
+    application.run_polling()  # Removed the allowed_updates parameter as it's not necessary
 
 if __name__ == "__main__":
     main()
