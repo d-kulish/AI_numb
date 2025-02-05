@@ -8,4 +8,7 @@ typing-extensions
 langchain
 python-telegram-bot
 scikit-learn
-numpy
+numpy 
+sqlalchemy
+psycopg2
+pandas 
