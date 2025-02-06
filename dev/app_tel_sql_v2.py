@@ -239,9 +239,23 @@ config = {"configurable": {"thread_id": thread_id}}
 
 async def handle_message(update, context):
     try:
-        user_id = update.effective_user.id
-        username = update.effective_user.username or "Unknown"
+        # Enhanced user identification
+        user = update.effective_user
+        user_id = user.id
+        username = user.username or "Unknown"
+        first_name = user.first_name or "Unknown"
+        last_name = user.last_name or "Unknown"
         
+        # Detailed user logging
+        print(f"""
+User Details:
+- ID: {user_id}
+- Username: {username}
+- First Name: {first_name}
+- Last Name: {last_name}
+- Is Bot: {user.is_bot}
+        """)
+
         question = update.message.text
         question = question.encode("utf-8", errors="ignore").decode("utf-8")
 
@@ -256,10 +270,10 @@ async def handle_message(update, context):
             ai_message = result_state["messages"][-1]
             ai_message_content = ai_message.content.encode("utf-8", errors="ignore").decode("utf-8")
         except Exception as api_error:
-            print(f"OpenAI API Error: {str(api_error)}")
+            print(f"OpenAI API Error for user {user_id}: {str(api_error)}")
             raise
 
-        # Store in MongoDB
+        # Store in MongoDB with enhanced user info
         try:
             coll_chat_history.insert_one({
                 "thread_id": str(thread_id),
@@ -269,24 +283,37 @@ async def handle_message(update, context):
                     "timestamp": time.time(),  # Use actual timestamp instead of UUID time
                     "chat_id": update.effective_chat.id,
                     "user_id": user_id,
-                    "username": username
+                    "username": username,
+                    "user_details": {
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "is_bot": user.is_bot
+                    }
                 },
                 "timestamp": time.time(),
             })
         except Exception as db_error:
-            print(f"MongoDB Error: {str(db_error)}")
+            print(f"MongoDB Error for user {user_id}: {str(db_error)}")
             # Continue even if storage fails
             
-        # Send response back to Telegram
+        # Send response back to Telegram with user-specific error handling
         if ai_message_content:
-            await update.message.reply_text(ai_message_content)
+            try:
+                await update.message.reply_text(ai_message_content)
+                print(f"Successfully sent response to user {user_id}")
+            except Exception as send_error:
+                print(f"Failed to send message to user {user_id}: {str(send_error)}")
+                raise
         else:
             await update.message.reply_text("I apologize, but I couldn't generate a response. Please try again.")
 
     except Exception as e:
-        error_message = f"Error processing message: {str(e)}"
+        error_message = f"Error processing message for user {user_id}: {str(e)}"
         print(error_message)
-        await update.message.reply_text("I encountered an error processing your message. Please try again.")
+        await update.message.reply_text(
+            "I encountered an error processing your message. "
+            "Please try again or contact support if the issue persists."
+        )
 
 async def start_command(update, context):
     user = update.effective_user
