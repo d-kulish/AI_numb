@@ -70,9 +70,13 @@ from sqlalchemy.orm import sessionmaker
 openai_token = os.getenv("OPENAI_API_KEY")
 mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))
+# Update the token variable name to match .env file
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_CHAT_BOT_TOKEN")  # Changed from TELEGRAM_BOT_TOKEN
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_CHAT_BOT_TOKEN not found in environment variables")
 
+print("Bot token validation:", "✓" if TELEGRAM_BOT_TOKEN else "✗")
+print(f"Token prefix: {TELEGRAM_BOT_TOKEN[:8] if TELEGRAM_BOT_TOKEN else 'None'}")
 
 coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
@@ -234,47 +238,84 @@ config = {"configurable": {"thread_id": thread_id}}
 
 
 async def handle_message(update, context):
-    question = update.message.text
-    question = question.encode("utf-8", errors="ignore").decode("utf-8")
+    try:
+        user_id = update.effective_user.id
+        username = update.effective_user.username or "Unknown"
+        
+        question = update.message.text
+        question = question.encode("utf-8", errors="ignore").decode("utf-8")
 
-    state = {"messages": [HumanMessage(content=question)]}
-    result_state = graph.invoke(state, config=config)
-    ai_message = result_state["messages"][-1]
-    ai_message_content = ai_message.content.encode("utf-8", errors="ignore").decode("utf-8")
+        # Send typing action to show the bot is processing
+        await update.message.chat.send_action(action="typing")
 
-    # Store in MongoDB
-    coll_chat_history.insert_one({
-        "thread_id": str(thread_id),
-        "conversation": {
-            "question": question,
-            "answer": ai_message_content,
-            "timestamp": uuid.uuid4().time,
-            "chat_id": update.effective_chat.id,
-            "user_id": update.effective_user.id
-        },
-        "timestamp": uuid.uuid4().time,
-    })
+        print(f"Processing message: '{question}' from User: {username} (ID: {user_id})")
 
-    # Send response back to Telegram
-    await update.message.reply_text(html.escape(ai_message_content), parse_mode='HTML')
+        try:
+            state = {"messages": [HumanMessage(content=question)]}
+            result_state = graph.invoke(state, config=config)
+            ai_message = result_state["messages"][-1]
+            ai_message_content = ai_message.content.encode("utf-8", errors="ignore").decode("utf-8")
+        except Exception as api_error:
+            print(f"OpenAI API Error: {str(api_error)}")
+            raise
+
+        # Store in MongoDB
+        try:
+            coll_chat_history.insert_one({
+                "thread_id": str(thread_id),
+                "conversation": {
+                    "question": question,
+                    "answer": ai_message_content,
+                    "timestamp": time.time(),  # Use actual timestamp instead of UUID time
+                    "chat_id": update.effective_chat.id,
+                    "user_id": user_id,
+                    "username": username
+                },
+                "timestamp": time.time(),
+            })
+        except Exception as db_error:
+            print(f"MongoDB Error: {str(db_error)}")
+            # Continue even if storage fails
+            
+        # Send response back to Telegram
+        if ai_message_content:
+            await update.message.reply_text(ai_message_content)
+        else:
+            await update.message.reply_text("I apologize, but I couldn't generate a response. Please try again.")
+
+    except Exception as e:
+        error_message = f"Error processing message: {str(e)}"
+        print(error_message)
+        await update.message.reply_text("I encountered an error processing your message. Please try again.")
 
 async def start_command(update, context):
-    await update.message.reply_text('Hello! I am your Numberz AI assistant. How can I help you today?')
+    user = update.effective_user
+    welcome_message = (
+        f"Hello {user.first_name}! I am your Numberz AI assistant.\n"
+        "I'm here to help you with any questions you have.\n"
+        "Feel free to ask me anything!"
+    )
+    await update.message.reply_text(welcome_message)
 
 def main():
-    # Get the token from environment variables
-    token = os.getenv("TELEGRAM_CHAT_BOT_TOKEN")
-    
-    # Create application
-    application = Application.builder().token(token).build()
-    
-    # Add handlers
-    application.add_handler(CommandHandler('start', start_command))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Start the bot
-    print("Starting bot...")
-    application.run_polling()  # Removed the allowed_updates parameter as it's not necessary
+    try:
+        if not TELEGRAM_BOT_TOKEN:
+            raise ValueError("Bot token is missing or invalid")
+            
+        print(f"Initializing bot with token starting with: {TELEGRAM_BOT_TOKEN[:8]}...")
+        
+        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        
+        # Add handlers
+        application.add_handler(CommandHandler('start', start_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        
+        print("Bot is starting up...")
+        print("To test the bot, send /start in Telegram")
+        application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"Failed to start bot: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     main()
