@@ -64,6 +64,7 @@ import html
 from sqlalchemy import create_engine, text
 from pathlib import Path
 from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timedelta
 
 
 # Connects
@@ -71,7 +72,9 @@ openai_token = os.getenv("OPENAI_API_KEY")
 mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 
 # Update the token variable name to match .env file
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_CHAT_BOT_TOKEN")  # Changed from TELEGRAM_BOT_TOKEN
+TELEGRAM_BOT_TOKEN = os.getenv(
+    "TELEGRAM_CHAT_BOT_TOKEN"
+)  # Changed from TELEGRAM_BOT_TOKEN
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_CHAT_BOT_TOKEN not found in environment variables")
 
@@ -165,18 +168,19 @@ def count_unique_conversations():
     # return f'Number of unique conversation saved is {len(unique_ids)}'
     return len(unique_ids)
 
-@tool 
+
+@tool
 def table_structure(table_name: str):
     """
     This funciton returns first 5 rows of any table from datatabase 'am_db'.
 
     Args:
-        table_name (str): The name of the table to query. 
+        table_name (str): The name of the table to query.
 
     Returns:
         python dictionary with 5 rows from the table.
     """
-    
+
     session = Session()
 
     try:
@@ -186,13 +190,80 @@ def table_structure(table_name: str):
         records = [dict(zip(columns, row)) for row in result]
     finally:
         session.close()
-    
+
     return records
+
+
+@tool
+def top10_product_sales_day(target_date=None):
+    """
+    Returns the top 10 products by sales for a specific day.
+
+    Args:
+        target_date (str or None): The target date in 'YYYY-MM-DD' format.
+                                 If None, returns yesterday's data.
+                                 Only accepts dates within the last 30 days.
+
+    Returns:
+        List[Dict]: A list of dictionaries with product_id, name, and sales.
+        Dict: Error message if date is invalid or no data found.
+    """
+    try:
+        today = datetime.now().date()
+
+        # Date handling
+        if target_date is None:
+            target_date = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+        elif isinstance(target_date, str):
+            try:
+                parsed_date = datetime.strptime(target_date, "%Y-%m-%d").date()
+                # Validate date range
+                if parsed_date > today:
+                    return {"error": "Cannot query future dates"}
+                if parsed_date < (today - timedelta(days=30)):
+                    return {
+                        "error": f"Can only query dates between {(today - timedelta(days=30)).strftime('%Y-%m-%d')} and {today.strftime('%Y-%m-%d')}"
+                    }
+            except ValueError:
+                return {"error": "Invalid date format. Please use YYYY-MM-DD"}
+
+        session = Session()
+
+        query = """
+        SELECT 
+            aaa.article_id as product_id, 
+            aaa2.translation as name, 
+            COALESCE(SUM(aaa.price), 0) as sales
+        FROM am_app_articlesales aaa
+        JOIN am_app_articlestockunitdictionary aaa2 
+            ON aaa.article_id = aaa2.id 
+        WHERE DATE(aaa.date_of_sales) = DATE(:target_date)
+        GROUP BY aaa.article_id, aaa2.translation 
+        ORDER BY sales DESC
+        LIMIT 10
+        """
+
+        result = session.execute(text(query), {"target_date": target_date})
+        columns = result.keys()
+        records = [dict(zip(columns, row)) for row in result]
+
+        if not records:
+            return {"message": f"No sales data found for date {target_date}"}
+
+        return records
+
+    except Exception as e:
+        print(f"Error in top10_product_sales_day: {str(e)}")
+        return {"error": f"Database query failed: {str(e)}"}
+    finally:
+        if "session" in locals():
+            session.close()
 
 
 tools = [
     count_unique_conversations,
-    table_structure, 
+    table_structure,
+    top10_product_sales_day,
 ]
 
 tool_node = ToolNode(tools)
@@ -203,12 +274,33 @@ prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-         You are an AI assistant for Numberz company. You follow these instructions: 
-            1. answer questions in the same language the clients asks them; 
-            2. be kind, professional and polite; 
-            3. format your answers in a structured way; 
-            4. answer questions only related to Numberz; 
-                  """,
+You are an AI assistant for Numberz company, operating in {current_year}. Follow these instructions:
+1. Answer questions in the same language the clients asks them
+2. Be kind, professional and polite
+3. Format your answers in a structured way
+4. Answer questions only related to Numberz
+5. Date handling requirements:
+   - Today's date is {current_date}
+   - You can ONLY access data from the last 30 days from today
+   - All dates MUST be from {current_year}
+   - Never reference or use dates from 2023 or earlier years
+   - If no specific date is mentioned, use yesterday ({yesterday_date})
+   - Always use YYYY-MM-DD format
+   - Always validate that requested dates are within the 30-day window from today
+6. For sales data queries:
+   - Convert any relative date references (e.g., "last Monday") to actual dates in YYYY-MM-DD format
+   - Only allow dates between {thirty_days_ago} and {current_date}
+   - Clearly explain date constraints when users request data outside this range
+        """.format(
+                current_date=datetime.now().strftime("%Y-%m-%d"),
+                current_year=datetime.now().year,
+                yesterday_date=(datetime.now() - timedelta(days=1)).strftime(
+                    "%Y-%m-%d"
+                ),
+                thirty_days_ago=(datetime.now() - timedelta(days=30)).strftime(
+                    "%Y-%m-%d"
+                ),
+            ),
         ),
         ("placeholder", "{messages}"),
     ]
@@ -245,16 +337,18 @@ async def handle_message(update, context):
         username = user.username or "Unknown"
         first_name = user.first_name or "Unknown"
         last_name = user.last_name or "Unknown"
-        
+
         # Detailed user logging
-        print(f"""
+        print(
+            f"""
 User Details:
 - ID: {user_id}
 - Username: {username}
 - First Name: {first_name}
 - Last Name: {last_name}
 - Is Bot: {user.is_bot}
-        """)
+        """
+        )
 
         question = update.message.text
         question = question.encode("utf-8", errors="ignore").decode("utf-8")
@@ -268,34 +362,38 @@ User Details:
             state = {"messages": [HumanMessage(content=question)]}
             result_state = graph.invoke(state, config=config)
             ai_message = result_state["messages"][-1]
-            ai_message_content = ai_message.content.encode("utf-8", errors="ignore").decode("utf-8")
+            ai_message_content = ai_message.content.encode(
+                "utf-8", errors="ignore"
+            ).decode("utf-8")
         except Exception as api_error:
             print(f"OpenAI API Error for user {user_id}: {str(api_error)}")
             raise
 
         # Store in MongoDB with enhanced user info
         try:
-            coll_chat_history.insert_one({
-                "thread_id": str(thread_id),
-                "conversation": {
-                    "question": question,
-                    "answer": ai_message_content,
-                    "timestamp": time.time(),  # Use actual timestamp instead of UUID time
-                    "chat_id": update.effective_chat.id,
-                    "user_id": user_id,
-                    "username": username,
-                    "user_details": {
-                        "first_name": first_name,
-                        "last_name": last_name,
-                        "is_bot": user.is_bot
-                    }
-                },
-                "timestamp": time.time(),
-            })
+            coll_chat_history.insert_one(
+                {
+                    "thread_id": str(thread_id),
+                    "conversation": {
+                        "question": question,
+                        "answer": ai_message_content,
+                        "timestamp": time.time(),  # Use actual timestamp instead of UUID time
+                        "chat_id": update.effective_chat.id,
+                        "user_id": user_id,
+                        "username": username,
+                        "user_details": {
+                            "first_name": first_name,
+                            "last_name": last_name,
+                            "is_bot": user.is_bot,
+                        },
+                    },
+                    "timestamp": time.time(),
+                }
+            )
         except Exception as db_error:
             print(f"MongoDB Error for user {user_id}: {str(db_error)}")
             # Continue even if storage fails
-            
+
         # Send response back to Telegram with user-specific error handling
         if ai_message_content:
             try:
@@ -305,7 +403,9 @@ User Details:
                 print(f"Failed to send message to user {user_id}: {str(send_error)}")
                 raise
         else:
-            await update.message.reply_text("I apologize, but I couldn't generate a response. Please try again.")
+            await update.message.reply_text(
+                "I apologize, but I couldn't generate a response. Please try again."
+            )
 
     except Exception as e:
         error_message = f"Error processing message for user {user_id}: {str(e)}"
@@ -314,6 +414,7 @@ User Details:
             "I encountered an error processing your message. "
             "Please try again or contact support if the issue persists."
         )
+
 
 async def start_command(update, context):
     user = update.effective_user
@@ -324,25 +425,29 @@ async def start_command(update, context):
     )
     await update.message.reply_text(welcome_message)
 
+
 def main():
     try:
         if not TELEGRAM_BOT_TOKEN:
             raise ValueError("Bot token is missing or invalid")
-            
+
         print(f"Initializing bot with token starting with: {TELEGRAM_BOT_TOKEN[:8]}...")
-        
+
         application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-        
+
         # Add handlers
-        application.add_handler(CommandHandler('start', start_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        
+        application.add_handler(CommandHandler("start", start_command))
+        application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+        )
+
         print("Bot is starting up...")
         print("To test the bot, send /start in Telegram")
         application.run_polling(drop_pending_updates=True)
     except Exception as e:
         print(f"Failed to start bot: {str(e)}")
         raise
+
 
 if __name__ == "__main__":
     main()
