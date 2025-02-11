@@ -51,26 +51,55 @@ from langchain.prompts.chat import ChatPromptTemplate
 from langchain_core.messages import HumanMessage
 
 import telegram
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 import time
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import List, Dict
 
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
+import html
+
+from sqlalchemy import create_engine, text
+from pathlib import Path
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timedelta
+
+# Import tools from the new package
+from dev.tools import (
+    table_structure,
+    top10_product_sales_day,
+    top10_cluster_sales_day,
+    top10_shops_sales_day,
+    top10_product_sales_period,
+    top10_cluster_sales_period,
+    top10_shops_sales_period,
+)
+
+# Replace database config imports with single import
+from dev.db_config import Session, engine
 
 # Connects
 openai_token = os.getenv("OPENAI_API_KEY")
 mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))
+# Update the token variable name to match .env file
+TELEGRAM_BOT_TOKEN = os.getenv(
+    "TELEGRAM_CHAT_BOT_TOKEN"
+)  # Changed from TELEGRAM_BOT_TOKEN
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_CHAT_BOT_TOKEN not found in environment variables")
 
+print("Bot token validation:", "✓" if TELEGRAM_BOT_TOKEN else "✗")
+print(f"Token prefix: {TELEGRAM_BOT_TOKEN[:8] if TELEGRAM_BOT_TOKEN else 'None'}")
 
 coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
 model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
 openai_client = OpenAI(api_key=openai_token)
+
+# load_dotenv(Path.cwd().parent / ".env")
 
 memory = MemorySaver()
 
@@ -122,65 +151,6 @@ def get_last_ai_message_content(messages):
     return None
 
 
-async def send_and_receive(dictionary):
-    # TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    # CHAT_ID = int(os.getenv("TELEGRAM_CHAT_ID"))  # Convert to integer
-
-    bot = None
-
-    try:
-        # Initialize the bot
-        bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
-
-        # Create inline keyboard
-        keyboard = [
-            [
-                InlineKeyboardButton("Approve", callback_data="approve"),
-                InlineKeyboardButton("Deny", callback_data="deny"),
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # Send request message
-        message_text = f"Please approve the following request: {dictionary}"
-        await bot.send_message(
-            chat_id=CHAT_ID, text=message_text, reply_markup=reply_markup
-        )
-        # print("Waiting for response...")
-
-        # Get initial update_id
-        updates = await bot.get_updates(timeout=1)
-        update_id = updates[-1].update_id + 1 if updates else None
-
-        while True:
-            updates = await bot.get_updates(offset=update_id, timeout=5)
-
-            for update in updates:
-                update_id = update.update_id + 1
-
-                if update.callback_query:
-                    callback = update.callback_query
-                    if callback.message.chat.id == CHAT_ID:
-                        response = callback.data
-                        # Acknowledge callback
-                        await bot.answer_callback_query(callback.id)
-                        # Send thank you message
-                        await bot.send_message(
-                            chat_id=CHAT_ID, text="Thank you for your reaction"
-                        )
-                        return response
-
-            await asyncio.sleep(1)
-
-    except Exception as e:
-        # print(f"Error: {e}")
-        return None
-    finally:
-        # Clean up only if bot was created
-        if bot is not None:
-            del bot
-
-
 @tool
 def count_unique_conversations():
     """
@@ -197,62 +167,17 @@ def count_unique_conversations():
     return len(unique_ids)
 
 
-@tool
-def approval_money_transfer(sentence: str) -> str:
-    """
-    This function asks for approval of money transfer.
-
-    Args:
-        sentence - string, this is the sentence that needs approval;
-
-    Returns:
-        str - function returns the approval status.
-    """
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a system that helps to get approval or denial for money transfers.",
-        },
-        {"role": "user", "content": f"Can I ask you a question - {sentence}"},
-        {
-            "role": "system",
-            "content": f"""Answer within the following guidance: 
-                        1. Define from {sentence} the 'recipient_name' and the 'amount_to_send'; 
-                        2. Create a JSON object with the recipient and the amount like {{"Recipient": 'recipient_name', "Amount": 'amount_to_send'}}; 
-                        3. Return only the final JSON object; 
-                        """,
-        },
-    ]
-
-    response = openai_client.chat.completions.create(
-        model="gpt-4o", messages=messages, temperature=0
-    )
-
-    content = response.choices[0].message.content.strip()
-
-    if content.startswith("```") and content.endswith("```"):
-        content_lines = content.strip().split("\n")
-        if content_lines[0].startswith("```"):
-            content_lines = content_lines[1:]
-        if content_lines[-1].startswith("```"):
-            content_lines = content_lines[:-1]
-        content = "\n".join(content_lines)
-
-    data = json.loads(content)
-
-    result = asyncio.run(send_and_receive(data))
-    if result == "approve":
-        return "Your request was Approved."
-    elif result == "deny":
-        return "Your request was Denied."
-    else:
-        return "There was an error processing your request."
-
-
 tools = [
     count_unique_conversations,
-    approval_money_transfer,
+    table_structure,
+    top10_product_sales_day,
+    top10_product_sales_period,
+    top10_cluster_sales_day,
+    top10_cluster_sales_period,
+    top10_shops_sales_day,
+    top10_shops_sales_period,
 ]
+
 tool_node = ToolNode(tools)
 
 # App
@@ -261,12 +186,33 @@ prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-         You are an AI assistant for Numberz company. You follow these instructions: 
-            1. answer questions in the same language the clients asks them; 
-            2. be kind, professional and polite; 
-            3. format your answers in a structured way; 
-            4. answer questions only related to Numberz; 
-                  """,
+You are an AI assistant for Numberz company, operating in {current_year}. Follow these instructions:
+1. Answer questions in the same language the clients asks them
+2. Be kind, professional and polite
+3. Format your answers in a structured way
+4. Answer questions only related to Numberz
+5. Date handling requirements:
+   - Today's date is {current_date}
+   - You can ONLY access data from the last 30 days from today
+   - All dates MUST be from {current_year}
+   - Never reference or use dates from 2023 or earlier years
+   - If no specific date is mentioned, use yesterday ({yesterday_date})
+   - Always use YYYY-MM-DD format
+   - Always validate that requested dates are within the 30-day window from today
+6. For sales data queries:
+   - Convert any relative date references (e.g., "last Monday") to actual dates in YYYY-MM-DD format
+   - Only allow dates between {thirty_days_ago} and {current_date}
+   - Clearly explain date constraints when users request data outside this range
+        """.format(
+                current_date=datetime.now().strftime("%Y-%m-%d"),
+                current_year=datetime.now().year,
+                yesterday_date=(datetime.now() - timedelta(days=1)).strftime(
+                    "%Y-%m-%d"
+                ),
+                thirty_days_ago=(datetime.now() - timedelta(days=30)).strftime(
+                    "%Y-%m-%d"
+                ),
+            ),
         ),
         ("placeholder", "{messages}"),
     ]
@@ -295,40 +241,124 @@ thread_id = uuid.uuid4()
 config = {"configurable": {"thread_id": thread_id}}
 
 
-def main():
-    conversation = []
-    thread_id = uuid.uuid4()  # Generate a unique thread ID for the conversation
-
+async def handle_message(update, context):
     try:
-        while True:
-            question = input("You: ")
-            if question.lower() in ["exit", "quit"]:
-                break
-            question = question.encode("utf-8", errors="ignore").decode("utf-8")
+        # Enhanced user identification
+        user = update.effective_user
+        user_id = user.id
+        username = user.username or "Unknown"
+        first_name = user.first_name or "Unknown"
+        last_name = user.last_name or "Unknown"
 
+        # Detailed user logging
+        print(
+            f"""
+User Details:
+- ID: {user_id}
+- Username: {username}
+- First Name: {first_name}
+- Last Name: {last_name}
+- Is Bot: {user.is_bot}
+        """
+        )
+
+        question = update.message.text
+        question = question.encode("utf-8", errors="ignore").decode("utf-8")
+
+        # Send typing action to show the bot is processing
+        await update.message.chat.send_action(action="typing")
+
+        print(f"Processing message: '{question}' from User: {username} (ID: {user_id})")
+
+        try:
             state = {"messages": [HumanMessage(content=question)]}
             result_state = graph.invoke(state, config=config)
             ai_message = result_state["messages"][-1]
             ai_message_content = ai_message.content.encode(
                 "utf-8", errors="ignore"
             ).decode("utf-8")
+        except Exception as api_error:
+            print(f"OpenAI API Error for user {user_id}: {str(api_error)}")
+            raise
 
-            print(f"AI: {ai_message_content}")
-            conversation.append(
+        # Store in MongoDB with enhanced user info
+        try:
+            coll_chat_history.insert_one(
                 {
-                    "question": question,
-                    "answer": ai_message_content,
-                    "timestamp": uuid.uuid4().time,
+                    "thread_id": str(thread_id),
+                    "conversation": {
+                        "question": question,
+                        "answer": ai_message_content,
+                        "timestamp": time.time(),  # Use actual timestamp instead of UUID time
+                        "chat_id": update.effective_chat.id,
+                        "user_id": user_id,
+                        "username": username,
+                        "user_details": {
+                            "first_name": first_name,
+                            "last_name": last_name,
+                            "is_bot": user.is_bot,
+                        },
+                    },
+                    "timestamp": time.time(),
                 }
             )
-    finally:
-        coll_chat_history.insert_one(
-            {
-                "thread_id": str(thread_id),
-                "conversation": conversation,
-                "timestamp": uuid.uuid4().time,
-            }
+        except Exception as db_error:
+            print(f"MongoDB Error for user {user_id}: {str(db_error)}")
+            # Continue even if storage fails
+
+        # Send response back to Telegram with user-specific error handling
+        if ai_message_content:
+            try:
+                await update.message.reply_text(ai_message_content)
+                print(f"Successfully sent response to user {user_id}")
+            except Exception as send_error:
+                print(f"Failed to send message to user {user_id}: {str(send_error)}")
+                raise
+        else:
+            await update.message.reply_text(
+                "I apologize, but I couldn't generate a response. Please try again."
+            )
+
+    except Exception as e:
+        error_message = f"Error processing message for user {user_id}: {str(e)}"
+        print(error_message)
+        await update.message.reply_text(
+            "I encountered an error processing your message. "
+            "Please try again or contact support if the issue persists."
         )
+
+
+async def start_command(update, context):
+    user = update.effective_user
+    welcome_message = (
+        f"Hello {user.first_name}! I am your Numberz AI assistant.\n"
+        "I'm here to help you with any questions you have.\n"
+        "Feel free to ask me anything!"
+    )
+    await update.message.reply_text(welcome_message)
+
+
+def main():
+    try:
+        if not TELEGRAM_BOT_TOKEN:
+            raise ValueError("Bot token is missing or invalid")
+
+        print(f"Initializing bot with token starting with: {TELEGRAM_BOT_TOKEN[:8]}...")
+
+        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+        # Add handlers
+        application.add_handler(CommandHandler("start", start_command))
+        application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+        )
+
+        print("Bot is starting up...")
+        print("To test the bot, send /start in Telegram")
+        application.run_polling(drop_pending_updates=True)
+    except Exception as e:
+        print(f"Failed to start bot: {str(e)}")
+        raise
 
 
 if __name__ == "__main__":
