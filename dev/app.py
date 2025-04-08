@@ -345,7 +345,15 @@ def main():
 
         print(f"Initializing bot with token starting with: {TELEGRAM_BOT_TOKEN[:8]}...")
 
-        application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        # Added timeout parameters to the Application builder
+        application = (
+            Application.builder()
+            .token(TELEGRAM_BOT_TOKEN)
+            .connect_timeout(30.0)
+            .read_timeout(30.0)
+            .write_timeout(30.0)
+            .build()
+        )
 
         # Add handlers
         application.add_handler(CommandHandler("start", start_command))
