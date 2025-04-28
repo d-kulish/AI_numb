@@ -68,6 +68,7 @@ from datetime import datetime, timedelta
 
 # Import tools from the new package
 from dev.tools import (
+    query_sisense_datasource,
     table_structure,
     top10_product_sales_day,
     top10_cluster_sales_day,
@@ -82,9 +83,19 @@ from dev.db_config import Session, engine
 
 # Connects
 openai_token = os.getenv("OPENAI_API_KEY")
-mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
+# mongodb_client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
 
-# Update the token variable name to match .env file
+import urllib.parse
+
+username = "dkulish"
+password = "fg8-ASg%jSkfD5e"
+host = "aichat.ncjk2.mongodb.net"
+encoded_username = urllib.parse.quote_plus(username)
+encoded_password = urllib.parse.quote_plus(password)
+mongodb_uri = f"mongodb+srv://{encoded_username}:{encoded_password}@{host}/"
+mongodb_client = pymongo.MongoClient(mongodb_uri)
+
+
 TELEGRAM_BOT_TOKEN = os.getenv(
     "TELEGRAM_CHAT_BOT_TOKEN"
 )  # Changed from TELEGRAM_BOT_TOKEN
@@ -176,6 +187,7 @@ tools = [
     top10_cluster_sales_period,
     top10_shops_sales_day,
     top10_shops_sales_period,
+    query_sisense_datasource,
 ]
 
 tool_node = ToolNode(tools)

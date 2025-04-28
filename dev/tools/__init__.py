@@ -5,6 +5,7 @@ from .top10_shops_sales import top10_shops_sales_day
 from .top10_product_sales_period import top10_product_sales_period
 from .top10_cluster_sales_period import top10_cluster_sales_period
 from .top10_shops_sales_period import top10_shops_sales_period
+from .sisense_tool import query_sisense_datasource 
 
 __all__ = [
     "table_structure",
@@ -14,4 +15,5 @@ __all__ = [
     "top10_product_sales_period",
     "top10_cluster_sales_period",
     "top10_shops_sales_period",
+    "query_sisense_datasource" 
 ]
