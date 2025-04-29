@@ -7,12 +7,23 @@ on:
       - main
     paths:
       - 'tel_chat/**'  # Only trigger when files in tel_chat change
+  # Add manual trigger option for testing
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
+      - name: Debug - Check connectivity
+        run: |
+          echo "Testing connectivity to VM..."
+          # Only log first few digits of IP for security
+          echo "Target VM: ${VM_HOST:0:6}..."
+          timeout 5 nc -zv ${{ secrets.VM_HOST }} 22 || echo "Connection failed - check firewall settings"
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
       
       - name: Deploy tel_chat to VM
         uses: appleboy/scp-action@master
@@ -22,6 +33,7 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           source: "tel_chat/*"  # Only copy tel_chat directory
           target: "/home/ubuntu/deployments/ai_numb"
+          timeout: 60s  # Increase timeout
           
       - name: Restart service
         uses: appleboy/ssh-action@master
