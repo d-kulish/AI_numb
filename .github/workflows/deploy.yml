@@ -6,12 +6,10 @@ on:
       - main
     paths:
       - 'tel_chat/**'  # Only trigger when files in tel_chat change
-  # Add manual trigger option for testing
   workflow_dispatch:
 
 jobs:
   deploy:
-    # This is the key change - using your self-hosted runner instead of GitHub's runners
     runs-on: self-hosted
     
     steps:
@@ -30,7 +28,7 @@ jobs:
           source venv/bin/activate
           pip install -r tel_chat/requirements.txt
           
-          # Restart the bot service
+          # Restart the bot service (using the now-allowed sudo command)
           sudo systemctl restart numberz-bot
           
           # Verify service status

@@ -196,10 +196,6 @@ prompt = ChatPromptTemplate.from_messages(
             - If no specific date is mentioned, use yesterday ({yesterday_date})
             - Always use YYYY-MM-DD format
             - Always validate that requested dates are within the 30-day window from today
-            6. For sales data queries:
-            - Convert any relative date references (e.g., "last Monday") to actual dates in YYYY-MM-DD format
-            - Only allow dates between {thirty_days_ago} and {current_date}
-            - Clearly explain date constraints when users request data outside this range
         """.format(
                 current_date=datetime.now().strftime("%Y-%m-%d"),
                 current_year=datetime.now().year,
