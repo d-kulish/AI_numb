@@ -195,7 +195,6 @@ prompt = ChatPromptTemplate.from_messages(
             - Never reference or use dates from 2023 or earlier years
             - If no specific date is mentioned, use yesterday ({yesterday_date})
             - Always use YYYY-MM-DD format
-            - Always validate that requested dates are within the 30-day window from today
         """.format(
                 current_date=datetime.now().strftime("%Y-%m-%d"),
                 current_year=datetime.now().year,

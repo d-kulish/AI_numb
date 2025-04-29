@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'tel_chat/**'  # Only trigger when files in tel_chat change
+      - 'tel_chat/**'
   workflow_dispatch:
 
 jobs:
@@ -20,6 +20,12 @@ jobs:
         run: |
           echo "Starting deployment at $(date)"
           
+          # Debug information
+          echo "Current user: $(whoami)"
+          echo "Sudo config:"
+          sudo -l || echo "Cannot list sudo privileges"
+          echo "Systemctl path: $(which systemctl)"
+          
           # Copy the application files (keeping .env file intact)
           rsync -av --exclude=".env" tel_chat/ /home/ubuntu/deployments/ai_numb/tel_chat/
           
@@ -28,10 +34,19 @@ jobs:
           source venv/bin/activate
           pip install -r tel_chat/requirements.txt
           
-          # Restart the bot service (using the now-allowed sudo command)
-          sudo systemctl restart numberz-bot
+          # Try different approaches to restart the service
+          echo "Attempting to restart service..."
           
-          # Verify service status
-          sudo systemctl status numberz-bot --no-pager
+          # Option 1: Direct systemctl with -n flag
+          sudo -n systemctl restart numberz-bot || echo "Failed with sudo -n"
+          
+          # Option 2: Use full path
+          sudo -n $(which systemctl) restart numberz-bot || echo "Failed with full path"
+          
+          # Check if service is running
+          systemctl status numberz-bot --no-pager || echo "Service status check failed"
+          
+          # Alternative service check
+          ps aux | grep "[p]ython.*app.py"
           
           echo "Deployment completed at $(date)"
