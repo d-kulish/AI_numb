@@ -12,7 +12,8 @@ import asyncio
 
 # import getpass
 import os
-import pymongo
+
+# import pymongo
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 
@@ -61,18 +62,17 @@ from typing import List, Dict
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 import html
 
-from sqlalchemy import create_engine, text
+# from sqlalchemy import create_engine, text
 from pathlib import Path
-from sqlalchemy.orm import sessionmaker
+
+# from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timedelta
 
 # Import tools from the new package
-from tel_chat.sisense import (
-    all_projects
-)
+from sisense import all_projects
 
 # Replace database config imports with single import
-from dev.db_config import Session, engine
+# from dev.db_config import Session, engine
 
 # Connects
 openai_token = os.getenv("OPENAI_API_KEY")
