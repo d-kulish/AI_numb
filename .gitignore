@@ -179,3 +179,5 @@ cython_debug/
 .vscode/
 *.code-workspace
 .history/
+
+jupyter/
