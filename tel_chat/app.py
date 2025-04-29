@@ -190,7 +190,6 @@ prompt = ChatPromptTemplate.from_messages(
             4. Answer questions only related to Numberz
             5. Date handling requirements:
             - Today's date is {current_date}
-            - You can ONLY access data from the last 30 days from today
             - All dates MUST be from {current_year}
             - Never reference or use dates from 2023 or earlier years
             - If no specific date is mentioned, use yesterday ({yesterday_date})
