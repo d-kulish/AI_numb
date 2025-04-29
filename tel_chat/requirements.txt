@@ -44,7 +44,7 @@ matplotlib-inline==0.1.7
 msgpack==1.1.0
 multidict==6.1.0
 nest-asyncio==1.6.0
-numpy==2.2.2
+numpy
 openai==1.61.0
 orjson==3.10.15
 packaging==24.2
