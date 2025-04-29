@@ -1,4 +1,3 @@
-# .github/workflows/deploy.yml
 name: Deploy Tel Chat to VM
 
 on:
@@ -12,37 +11,29 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # This is the key change - using your self-hosted runner instead of GitHub's runners
+    runs-on: self-hosted
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
       
-      - name: Debug - Check connectivity
+      - name: Deploy application
         run: |
-          echo "Testing connectivity to VM..."
-          # Only log first few digits of IP for security
-          echo "Target VM: ${VM_HOST:0:6}..."
-          timeout 5 nc -zv ${{ secrets.VM_HOST }} 22 || echo "Connection failed - check firewall settings"
-        env:
-          VM_HOST: ${{ secrets.VM_HOST }}
-      
-      - name: Deploy tel_chat to VM
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USERNAME }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          source: "tel_chat/*"  # Only copy tel_chat directory
-          target: "/home/ubuntu/deployments/ai_numb"
-          timeout: 60s  # Increase timeout
+          echo "Starting deployment at $(date)"
           
-      - name: Restart service
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USERNAME }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            cd /home/ubuntu/deployments/ai_numb
-            source venv/bin/activate
-            pip install -r tel_chat/requirements.txt
-            sudo systemctl restart numberz-bot
+          # Copy the application files (keeping .env file intact)
+          rsync -av --exclude=".env" tel_chat/ /home/ubuntu/deployments/ai_numb/tel_chat/
+          
+          # Setup and restart the service
+          cd /home/ubuntu/deployments/ai_numb
+          source venv/bin/activate
+          pip install -r tel_chat/requirements.txt
+          
+          # Restart the bot service
+          sudo systemctl restart numberz-bot
+          
+          # Verify service status
+          sudo systemctl status numberz-bot --no-pager
+          
+          echo "Deployment completed at $(date)"

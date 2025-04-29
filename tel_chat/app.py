@@ -183,23 +183,23 @@ prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-You are an AI assistant for Numberz company, operating in {current_year}. Follow these instructions:
-1. Answer questions in the same language the clients asks them
-2. Be kind, professional and polite
-3. Format your answers in a structured way
-4. Answer questions only related to Numberz
-5. Date handling requirements:
-   - Today's date is {current_date}
-   - You can ONLY access data from the last 30 days from today
-   - All dates MUST be from {current_year}
-   - Never reference or use dates from 2023 or earlier years
-   - If no specific date is mentioned, use yesterday ({yesterday_date})
-   - Always use YYYY-MM-DD format
-   - Always validate that requested dates are within the 30-day window from today
-6. For sales data queries:
-   - Convert any relative date references (e.g., "last Monday") to actual dates in YYYY-MM-DD format
-   - Only allow dates between {thirty_days_ago} and {current_date}
-   - Clearly explain date constraints when users request data outside this range
+            You are an AI assistant for Numberz company, operating in {current_year}. Follow these instructions:
+            1. Answer questions in the same language the clients asks them
+            2. Be kind, professional and polite
+            3. Format your answers in a structured way
+            4. Answer questions only related to Numberz
+            5. Date handling requirements:
+            - Today's date is {current_date}
+            - You can ONLY access data from the last 30 days from today
+            - All dates MUST be from {current_year}
+            - Never reference or use dates from 2023 or earlier years
+            - If no specific date is mentioned, use yesterday ({yesterday_date})
+            - Always use YYYY-MM-DD format
+            - Always validate that requested dates are within the 30-day window from today
+            6. For sales data queries:
+            - Convert any relative date references (e.g., "last Monday") to actual dates in YYYY-MM-DD format
+            - Only allow dates between {thirty_days_ago} and {current_date}
+            - Clearly explain date constraints when users request data outside this range
         """.format(
                 current_date=datetime.now().strftime("%Y-%m-%d"),
                 current_year=datetime.now().year,
@@ -278,27 +278,6 @@ async def handle_message(update, context):
             print(f"OpenAI API Error for user {user_id}: {str(api_error)}")
             raise
 
-        # Store in MongoDB with enhanced user info
-        # try:
-        #     coll_chat_history.insert_one(
-        #         {
-        #             "thread_id": str(thread_id),
-        #             "conversation": {
-        #                 "question": question,
-        #                 "answer": ai_message_content,
-        #                 "timestamp": time.time(),  # Use actual timestamp instead of UUID time
-        #                 "chat_id": update.effective_chat.id,
-        #                 "user_id": user_id,
-        #                 "username": username,
-        #                 "user_details": {
-        #                     "first_name": first_name,
-        #                     "last_name": last_name,
-        #                     "is_bot": user.is_bot,
-        #                 },
-        #             },
-        #             "timestamp": time.time(),
-        #         }
-        #     )
         except Exception as db_error:
             print(f"MongoDB Error for user {user_id}: {str(db_error)}")
             # Continue even if storage fails
