@@ -6,11 +6,13 @@ from dotenv import load_dotenv
 from urllib.parse import quote
 from langchain_core.tools import tool
 
-warnings.filterwarnings('ignore', message='Unverified HTTPS request')
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 load_dotenv()
+
 
 class SisenseClient:
     """Handles authentication and querying for Sisense."""
+
     def __init__(self):
         self.sisense_url = os.getenv("SISENSE_URL")
         self.username = os.getenv("SISENSE_USER")
@@ -19,7 +21,9 @@ class SisenseClient:
         self.authenticated = False
 
         if not all([self.sisense_url, self.username, self.password]):
-            print("Error: Sisense credentials (URL, USER, PASSWORD) not found in environment variables.")
+            print(
+                "Error: Sisense credentials (URL, USER, PASSWORD) not found in environment variables."
+            )
             return
 
         self._authenticate()
@@ -28,7 +32,7 @@ class SisenseClient:
         """Authenticates with the Sisense API."""
         try:
             self.session = requests.Session()
-            self.session.verify = False  
+            self.session.verify = False
             self.session.get(f"{self.sisense_url}/")
 
             auth_url = f"{self.sisense_url}/api/v1/authentication/login"
@@ -37,27 +41,37 @@ class SisenseClient:
 
             if auth_response.status_code == 200:
                 resp_data = auth_response.json()
-                if 'access_token' in resp_data:
-                    self.session.headers.update({
-                        "Authorization": f"Bearer {resp_data['access_token']}",
-                        "Content-Type": "application/json",
-                        "accept": "application/json"
-                    })
-                    if 'csrf_token' in resp_data:
-                         # Note: Check if X-XSRF-TOKEN is the correct header name for your Sisense version
-                        self.session.headers.update({"X-XSRF-TOKEN": resp_data['csrf_token']})
+                if "access_token" in resp_data:
+                    self.session.headers.update(
+                        {
+                            "Authorization": f"Bearer {resp_data['access_token']}",
+                            "Content-Type": "application/json",
+                            "accept": "application/json",
+                        }
+                    )
+                    if "csrf_token" in resp_data:
+                        # Note: Check if X-XSRF-TOKEN is the correct header name for your Sisense version
+                        self.session.headers.update(
+                            {"X-XSRF-TOKEN": resp_data["csrf_token"]}
+                        )
                     self.authenticated = True
                     print("Sisense authentication successful!")
                 else:
-                    print("Authentication succeeded but no access_token found in response.")
+                    print(
+                        "Authentication succeeded but no access_token found in response."
+                    )
             else:
-                print(f"Sisense authentication failed: {auth_response.status_code} - {auth_response.text}")
+                print(
+                    f"Sisense authentication failed: {auth_response.status_code} - {auth_response.text}"
+                )
         except requests.exceptions.RequestException as e:
             print(f"Error during Sisense authentication: {e}")
         except Exception as e:
             print(f"An unexpected error occurred during authentication setup: {e}")
 
-    def run_sql_query(self, query: str, datasource: str = "RAD_NOVUS_FULL", count: int = -1) -> pd.DataFrame | str:
+    def run_sql_query(
+        self, query: str, datasource: str = "RAD_NOVUS_FULL", count: int = -1
+    ) -> pd.DataFrame | str:
         """
         Run a SQL query against the specified Sisense datasource.
 
@@ -80,17 +94,19 @@ class SisenseClient:
             if response.status_code == 200:
                 data = response.json()
 
-                if 'values' in data and 'headers' in data:
+                if "values" in data and "headers" in data:
                     df = pd.DataFrame(data=data["values"], columns=data["headers"])
-                    print(f"Sisense query executed successfully. Retrieved {len(df)} rows.")
+                    print(
+                        f"Sisense query executed successfully. Retrieved {len(df)} rows."
+                    )
                     return df
                 else:
                     print(f"Sisense query returned unexpected format: {data}")
-                    return f"Error: Unexpected response format from Sisense API. Data: {str(data)[:200]}..." # Return truncated data
+                    return f"Error: Unexpected response format from Sisense API. Data: {str(data)[:200]}..."  # Return truncated data
             else:
                 print(f"Sisense query failed: {response.status_code}")
                 print(response.text)
-                return f"Error: Sisense query failed with status {response.status_code}. Response: {response.text[:200]}..." # Return truncated error
+                return f"Error: Sisense query failed with status {response.status_code}. Response: {response.text[:200]}..."  # Return truncated error
 
         except requests.exceptions.RequestException as e:
             print(f"Error during Sisense query execution: {e}")
@@ -101,9 +117,12 @@ class SisenseClient:
 
 
 @tool
-def all_projects(query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV") -> str:
+def all_projects_performance(
+    query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV"
+) -> str:
     """
-    This function return short description for all projects - start date, end date, project name and project id. It should be used for defining unique project metadata. 
+    This function returns list of KPIs for all projects - Project ID, Base Sales, Base Units, Total Sales, Total Units, Promo Sales, Promo Share, Back Margin max week and min week.
+    It should be used as overal information for all projects or comparative analysis among projects.
 
     Args:
         table_name (datasource): The name of Sisense cube usef for the dashboard.
@@ -114,15 +133,19 @@ def all_projects(query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV") 
     """
     client = SisenseClient()
 
-    table = 'pr_project'
+    table = "sales_check"
     query = f"""
-    SELECT 
-        data_start as "Start Date", 
-        data_fin as "End Date", 
-        project_name as "Project Name", 
-        project_id as "Project ID" 
-    FROM {table}"""
-
+        SELECT project_id as "Project ID", 
+                BaseSales as "Base Sales", 
+                BaseUnits as "Base Units", 
+                TotalSales as "Total Sales", 
+                TotalUnits as "Total Units", 
+                PromoSales as "Promo Sales",
+                PromoShare as "Promo Share",
+                maxweek as "Back Margin max week",
+                minweek as "Back Margin min week"
+        FROM {table} 
+        where project_id in (186, 203, 204, 205, 207)"""
     if not client.authenticated:
         return "Failed to authenticate with Sisense. Check credentials and Sisense service status."
 

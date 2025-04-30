@@ -74,9 +74,7 @@ from sisense import all_projects, all_projects_performance
 # Connects
 openai_token = os.getenv("OPENAI_API_KEY")
 
-TELEGRAM_BOT_TOKEN = os.getenv(
-    "TELEGRAM_CHAT_BOT_TOKEN"
-)  
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_CHAT_BOT_TOKEN")
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_CHAT_BOT_TOKEN not found in environment variables")
 
@@ -84,7 +82,10 @@ print("Bot token validation:", "✓" if TELEGRAM_BOT_TOKEN else "✗")
 print(f"Token prefix: {TELEGRAM_BOT_TOKEN[:8] if TELEGRAM_BOT_TOKEN else 'None'}")
 
 
-model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
+# model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
+model = ChatOpenAI(
+    model="gpt-4.1-mini-2025-04-14", api_key=openai_token, temperature=0.5
+)
 openai_client = OpenAI(api_key=openai_token)
 
 memory = MemorySaver()
@@ -156,7 +157,17 @@ prompt = ChatPromptTemplate.from_messages(
             4. ALWAYS use your available tools when asked about projects, performance data, or analytics
             5. If you don't know the answer, say that you don't know
             6. If you are asked analytical questions, try to define trends, make comparisons and try to draw conclusions
-                    """,
+            7. Important date information:
+               - Today's date is {current_date}
+               - Current year is {current_year}
+               - Current month is {current_month}
+               - Yesterday's date was {yesterday_date}
+            """.format(
+                current_date=datetime.now().strftime("%B %d, %Y"),
+                current_year=datetime.now().year,
+                current_month=datetime.now().strftime("%B"),
+                yesterday_date=(datetime.now() - timedelta(days=1)).strftime("%B %d, %Y"),
+            ),
         ),
         ("placeholder", "{messages}"),
     ]

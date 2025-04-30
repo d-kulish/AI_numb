@@ -69,7 +69,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Import tools from the new package
-from sisense import all_projects
+from sisense import all_projects, all_projects_performance
 
 # Replace database config imports with single import
 # from dev.db_config import Session, engine
@@ -100,7 +100,10 @@ print(f"Token prefix: {TELEGRAM_BOT_TOKEN[:8] if TELEGRAM_BOT_TOKEN else 'None'}
 
 # coll_chat_history = mongodb_client["AI_numb"]["chat_history"]
 
-model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
+# model = ChatOpenAI(model="gpt-4o", api_key=openai_token, temperature=0.5)
+model = ChatOpenAI(
+    model="gpt-4.1-mini-2025-04-14", api_key=openai_token, temperature=0.5
+)
 openai_client = OpenAI(api_key=openai_token)
 
 # load_dotenv(Path.cwd().parent / ".env")
@@ -155,24 +158,9 @@ def get_last_ai_message_content(messages):
     return None
 
 
-# @tool
-# def count_unique_conversations():
-#     """
-#     Aggregates the total number of unique conversation saved MongoDB collection for AI chat.
-
-#     Args:
-#         None
-
-#     Returns:
-#         int: The total number of unique IDs.
-#     """
-#     unique_ids = coll_chat_history.distinct("_id")
-#     # return f'Number of unique conversation saved is {len(unique_ids)}'
-#     return len(unique_ids)
-
-
 tools = [
     all_projects,
+    all_projects_performance,
 ]
 
 tool_node = ToolNode(tools)
@@ -183,26 +171,23 @@ prompt = ChatPromptTemplate.from_messages(
         (
             "system",
             """
-            You are an AI assistant for Numberz company, operating in {current_year}. Follow these instructions:
+            You are an AI assistant for Numberz company:
             1. Answer questions in the same language the clients asks them
             2. Be kind, professional and polite
             3. Format your answers in a structured way
-            4. Answer questions only related to Numberz
-            5. Date handling requirements:
-            - Today's date is {current_date}
-            - All dates MUST be from {current_year}
-            - Never reference or use dates from 2023 or earlier years
-            - If no specific date is mentioned, use yesterday ({yesterday_date})
-            - Always use YYYY-MM-DD format
-        """.format(
-                current_date=datetime.now().strftime("%Y-%m-%d"),
+            4. ALWAYS use your available tools when asked about projects, performance data, or analytics
+            5. If you don't know the answer, say that you don't know
+            6. If you are asked analytical questions, try to define trends, make comparisons and try to draw conclusions
+            7. Important date information:
+               - Today's date is {current_date}
+               - Current year is {current_year}
+               - Current month is {current_month}
+               - Yesterday's date was {yesterday_date}
+            """.format(
+                current_date=datetime.now().strftime("%B %d, %Y"),
                 current_year=datetime.now().year,
-                yesterday_date=(datetime.now() - timedelta(days=1)).strftime(
-                    "%Y-%m-%d"
-                ),
-                thirty_days_ago=(datetime.now() - timedelta(days=30)).strftime(
-                    "%Y-%m-%d"
-                ),
+                current_month=datetime.now().strftime("%B"),
+                yesterday_date=(datetime.now() - timedelta(days=1)).strftime("%B %d, %Y"),
             ),
         ),
         ("placeholder", "{messages}"),
