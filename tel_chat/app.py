@@ -69,7 +69,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Import tools from the new package
-from sisense import all_projects, all_projects_performance
+from sisense import all_projects, all_projects_performance, stores_split
 
 # Replace database config imports with single import
 # from dev.db_config import Session, engine
@@ -161,6 +161,7 @@ def get_last_ai_message_content(messages):
 tools = [
     all_projects,
     all_projects_performance,
+    stores_split,
 ]
 
 tool_node = ToolNode(tools)
@@ -187,7 +188,9 @@ prompt = ChatPromptTemplate.from_messages(
                 current_date=datetime.now().strftime("%B %d, %Y"),
                 current_year=datetime.now().year,
                 current_month=datetime.now().strftime("%B"),
-                yesterday_date=(datetime.now() - timedelta(days=1)).strftime("%B %d, %Y"),
+                yesterday_date=(datetime.now() - timedelta(days=1)).strftime(
+                    "%B %d, %Y"
+                ),
             ),
         ),
         ("placeholder", "{messages}"),
