@@ -69,7 +69,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Import tools from the new package
-from sisense import all_projects, all_projects_performance, stores_split
+from sisense import (all_projects, all_projects_performance, stores_split, attribute_1, 
+                     attribute_2, attribute_3)
 
 # Replace database config imports with single import
 # from dev.db_config import Session, engine
@@ -159,9 +160,7 @@ def get_last_ai_message_content(messages):
 
 
 tools = [
-    all_projects,
-    all_projects_performance,
-    stores_split,
+    all_projects, all_projects_performance, stores_split, attribute_1, attribute_2, attribute_3, 
 ]
 
 tool_node = ToolNode(tools)
