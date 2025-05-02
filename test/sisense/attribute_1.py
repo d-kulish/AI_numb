@@ -70,7 +70,10 @@ class SisenseClient:
             print(f"An unexpected error occurred during authentication setup: {e}")
 
     def run_sql_query(
-        self, query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV", count: int = -1
+        self,
+        query: str,
+        datasource: str = "C4R_CM_Project_Data_Check_DEV",
+        count: int = -1,
     ) -> pd.DataFrame | str:
         """
         Run a SQL query against the specified Sisense datasource.
@@ -117,10 +120,10 @@ class SisenseClient:
 
 
 @tool
-def stores_split(query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV") -> str:
+def attribute_1(query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV") -> str:
     """
-    This function returns split for Markets differentiated by Store type. The result includes Market name, relevant Store type, and the number of ACTIVE stores in each category.
-    The result could be used to compare Markets and Store types.
+    This function return table for 'Attribute 1' with list of main feature, total counts of UPC_ID for each feature, Total Sales and Total Units and its share.
+    It should be used analyze different features of 'Attribute 1'.
 
     Args:
         table_name (datasource): The name of Sisense cube usef for the dashboard.
@@ -131,21 +134,56 @@ def stores_split(query: str, datasource: str = "C4R_CM_Project_Data_Check_DEV") 
     """
     client = SisenseClient()
 
-    table = "Stocks"
+    table = "attribute_check"
+
     query = f"""SELECT 
-                    L1 as "Markets", 
-                    L2 as "Store type", 
-                    COUNT(DISTINCT StoreID) as "Number of stores" 
-                FROM {table} 
-                WHERE L1 IN ('Market1', 'Market2')
-                    AND IsActive = 'true'
-                GROUP BY L1, L2
-                ORDER BY L1, "Number of stores" DESC"""
+        Attribute1 as "Atribute 1", 
+        COUNT(DISTINCT UPC_ID) as "Unique UPC_ID", 
+        SUM(TotalSales) as "Total Sales", 
+        SUM(TotalUnits) as "Total Units"
+    FROM {table}
+    WHERE project_id IN (186, 203, 204, 205, 207)
+    GROUP BY Attribute1
+    ORDER BY COUNT(DISTINCT UPC_ID) DESC"""
 
-    if not client.authenticated:
-        return "Failed to authenticate with Sisense. Check credentials and Sisense service status."
+    stores_df = client.run_sql_query(query, datasource)
 
-    result = client.run_sql_query(query=query, datasource=datasource)
+    # Calculate percentages using pandas
+    if stores_df is not None:
+        total = stores_df["Unique UPC_ID"].sum()
+        total_sales = stores_df["Total Sales"].sum()
+        total_units = stores_df["Total Units"].sum()
+
+        stores_df["UPC Share (%)"] = (stores_df["Unique UPC_ID"] / total * 100).round(2)
+        stores_df["Sales Share (%)"] = (
+            stores_df["Total Sales"] / total_sales * 100
+        ).round(2)
+        stores_df = stores_df[
+            [
+                "Atribute 1",
+                "Unique UPC_ID",
+                "UPC Share (%)",
+                "Total Sales",
+                "Sales Share (%)",
+                "Total Units",
+            ]
+        ]
+
+        # Create a totals row
+        totals = pd.DataFrame(
+            {
+                "Atribute 1": ["Total"],
+                "Unique UPC_ID": [total],
+                "UPC Share (%)": [100.0],
+                "Total Sales": [total_sales],
+                "Sales Share (%)": [100.0],
+                "Total Units": [total_units],
+            },
+            index=["Total"],
+        )
+
+        # Concatenate the original DataFrame with the totals row
+        result = pd.concat([stores_df, totals])
 
     if isinstance(result, pd.DataFrame):
         # Convert DataFrame to string format suitable for LLM response

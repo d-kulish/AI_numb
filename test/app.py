@@ -68,7 +68,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Import tools from the new package
-from sisense import all_projects, all_projects_performance, stores_split
+from sisense import all_projects, all_projects_performance, stores_split, attribute_1
 
 #
 # Connects
@@ -142,6 +142,7 @@ tools = [
     all_projects,
     all_projects_performance,
     stores_split,
+    attribute_1,
 ]
 
 tool_node = ToolNode(tools)
