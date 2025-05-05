@@ -6,6 +6,10 @@ from .attribute_2 import attribute_2
 from .attribute_3 import attribute_3
 from .price_segments import price_segments
 from .category import category
+from .subcategory import subcategory
+from .package import package
+from .brand import brand 
+from .manufacturer import manufacturer
 
 
 __all__ = [
@@ -17,4 +21,8 @@ __all__ = [
     "attribute_3",
     "price_segments",
     "category",
+    "subcategory",
+    "package",
+    "brand", 
+    "manufacturer",
 ]

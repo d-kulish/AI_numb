@@ -76,7 +76,11 @@ from sisense import (
     attribute_2,
     attribute_3,
     price_segments,
-    category, 
+    category,
+    subcategory,
+    package,
+    brand,
+    manufacturer,
 )
 
 #
@@ -155,7 +159,11 @@ tools = [
     attribute_2,
     attribute_3,
     price_segments,
-    category
+    category,
+    subcategory,
+    package,
+    brand,
+    manufacturer,
 ]
 
 tool_node = ToolNode(tools)
